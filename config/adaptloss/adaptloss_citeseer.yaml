@@ -1,0 +1,28 @@
+model:
+  method: adaptloss
+  emb_dim: 128
+  hidden_dim: 64
+  cl_batch_size: 0
+  noise: true
+  alpha: 0.01
+  nlayers: 2
+  k: 10
+  temperature: 1
+  lr_dis: 0.01
+  warm_up: 20
+  confidence: 0.6
+  dropout: 0.5
+  dist_method: cos
+training:
+  n_epochs: 200
+  patience:
+  criterion: metric
+  debug: true
+  lr: 0.01
+  weight_decay: 5e-4
+dataset:
+  sparse: 1
+analysis:
+  flag: false
+  project: gnn-with-label-noise
+  save_graph: false
