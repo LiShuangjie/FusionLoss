@@ -27,10 +27,8 @@ def merge_params(model_conf):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str,
-                    default='cora',
-                    choices=['cora', 'citeseer', 'pubmed', 'amazoncom', 'amazonpho', 'squirrel',
-                             'dblp', 'blogcatalog', 'flickr','cornell', 'wisconsin','texas','chameleon', 'film',
-                             'amazon-ratings', 'roman-empire','arxiv', 'arxiv-year'],
+                    default='citeseer',
+                    choices=[ 'citeseer', 'pubmed',  'amazonpho','blogcatalog', 'flickr','roman-empire','arxiv'],
                     help='Select dataset')
 parser.add_argument('--method', type=str,
                     default='mlp',
@@ -98,7 +96,7 @@ if __name__ == '__main__':
         model_conf = load_conf(None, args.method, data.name)
         if nni.get_trial_id() != "STANDALONE":
             model_conf = merge_params(model_conf)
-        if  args.dataset in ['citeseer','amazonpho','roman-empire','amazon-ratings','arxiv','arxiv-year', 'pubmed']:
+        if  args.dataset in ['citeseer','amazonpho','roman-empire','arxiv', 'pubmed']:
  
             data.noisy_label = torch.load("./noise/"+args.dataset+"/"+args.noise_type+str(args.noise_rate)+".pth", weights_only=False)
             data.noisy_label = data.noisy_label.type(torch.int64).to(args.device)
@@ -111,7 +109,6 @@ if __name__ == '__main__':
         model_conf.model['n_classes'] = data.n_classes
         model_conf.training['debug'] = True
         predictor = eval(args.method + '_Predictor')(model_conf, data, args.device)
-        # 将idx_train 分为干净idx和噪声idx 干净的为1 噪声的为0 转为一个二类问题
         binary_clean_mask = data.noisy_label[data.train_masks] == data.labels[data.train_masks]
         if args.method == 'adaptloss':
             result = predictor.train(binary_clean_mask, args.noise_rate)

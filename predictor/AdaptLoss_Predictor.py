@@ -19,21 +19,6 @@ class NegEntropy(object):
         probs = torch.clamp(probs, min=1e-10, max=1.0)
         return torch.mean(torch.sum(probs.log()*probs, dim=1))
 
-def plotAuc(auc_lp_epoch, auc_hp_epoch, auc_com_epoch):
-        import matplotlib.pyplot as plt
-        import numpy as np
-        plt.figure(figsize=(10, 7))
-        x = range(len(auc_lp_epoch))
-        # print("====auc_epoch===",auc_epoch)
-        plt.plot(x, auc_lp_epoch, label='auc_lp_epoch', color='blue')
-        plt.plot(x, auc_hp_epoch, label='auc_hp_epoch', color='red')
-        plt.plot(x, auc_com_epoch, label='auc_com_epoch', color='green')
-
-        plt.xlabel('Epoch')
-        plt.ylabel('AUC')
-        plt.grid(True)
-        plt.legend()
-        plt.savefig("auc_ada.png")
 
 def plot2distribution(dist1, dist2,fil, num_scales = 15, width = 0.1) :
     import matplotlib.pyplot as plt
@@ -177,13 +162,6 @@ class adaptloss_Predictor(Predictor):
     def train(self,binary_y, noise_rate):
 
         self.noise_rate = noise_rate
-        auc_epoch = []
-        auc_epoch_lp = []
-        auc_epoch_hp = []
-
-        # auc_hp_epoch = []
-        # auc_com_epoch = []
-        # # loss_array =[]
 
         for epoch in range(self.conf.training['n_epochs']):
             
@@ -228,17 +206,12 @@ class adaptloss_Predictor(Predictor):
                 # loss_train = torch.mean(loss_train)              
 
             else:
-                # 计算对比损失
                 cl_loss = self.predictModel.cal_cl(log_lp, log_hp)
-                # clean_mask, prob, loss_combine,loss_pick_lp, loss_pick_hp = self.devide_labeled_nodes( binary_y) 
-                # label_loss, inter_view_loss = self.criterion(clean_mask,self.train_mask, log_lp, log_hp, self.noisy_label, epoch)
                 label_loss, loss_pick = self.criterion.division(self.train_mask, log_lp, log_hp,self.noisy_label, self.localsim, epoch,binary_y, noise_rate=self.noise_rate)
-                auc= calculate_auc(loss_pick, binary_y.int()) 
-                auc_epoch.append(round(auc.item(), 2))
                 
-                # 消融，w/o cl_loss
-                loss_train = label_loss
-                # loss_train = cl_loss + label_loss
+                # w/o cl_loss
+                # loss_train = label_loss
+                loss_train = cl_loss + label_loss
 
                 print("[TRAIN] Epoch:{:04d} |  laebl Loss {:.4f} ".format(epoch, label_loss))
                 acc_train = (self.metric(self.noisy_label[self.train_mask].cpu().numpy(),log_lp[self.train_mask].detach().cpu().numpy())
@@ -246,13 +219,12 @@ class adaptloss_Predictor(Predictor):
 
             loss_add = self.get_pseudo_label(log_lp, log_hp)
             total_loss = loss_train + loss_add
-            # 消融 w/o Un
+            # w/o Un
             # total_loss = loss_train 
 
             total_loss.backward()
             self.optimizer.step()
 
-            # 不能直接和R2LP的结果直接比，因为R2LP只有训练集加了noise 验证集和测试集都是clean的
             loss_val, acc_val, acc_lp, acc_hp = self.evaluate(self.val_mask, self.noisy_label)
 
 
@@ -275,9 +247,6 @@ class adaptloss_Predictor(Predictor):
                 print(
                     "Epoch {:05d} | Time(s) {:.4f} | Loss(train) {:.4f} | Acc(train) {:.4f} | Loss(val) {:.4f} | Acc(val) {:.4f} | {}".format(
                         epoch + 1, time.time() - t0, loss_train.item(), acc_train, loss_val, acc_val, improve))
-        
-        # print("auc_lp_epoch",auc_lp_epoch)
-        # plotAuc(auc_lp_epoch, auc_hp_epoch, auc_com_epoch)
 
 
         loss_test, acc_test, acc_lp, acc_hp = self.test(self.test_mask)
@@ -288,7 +257,7 @@ class adaptloss_Predictor(Predictor):
             print("Loss(test) {:.4f} | Acc(test) {:.4f}".format(loss_test.item(), acc_test))
             print("acc_lp {:.4f} | acc_hp {:.4f}".format(acc_lp.item(), acc_hp.item()))
 
-        return self.result, auc_epoch
+        return self.result, _
             
 
     def evaluate(self, mask, label):
@@ -318,7 +287,6 @@ class adaptloss_Predictor(Predictor):
         return loss_test, acc_pred_test, acc_lp, acc_hp 
 
     
-    # =======强弱增强伪标签==========
     def get_pseudo_label(self, x_lp, x_hp):
         p_1 = F.softmax(x_lp, dim=1).detach()
         p_2 = F.softmax(x_hp, dim=1).detach()
@@ -326,7 +294,6 @@ class adaptloss_Predictor(Predictor):
         pseudo_mask = (max_probs >= self.conf.model['confidence']).float()
         loss_lp = F.cross_entropy(x_hp[self.idx_unlabel], targets_u, reduction='none')
         loss_lp = loss_lp * pseudo_mask
-        print("=========unlabeled pseudo_mask.sum()========",pseudo_mask.sum())
         loss = loss_lp.mean()
         return loss
 
